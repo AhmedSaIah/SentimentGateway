@@ -80,6 +80,14 @@ from bs4 import BeautifulSoup
 from langdetect import detect, DetectorFactory
 from langdetect.lang_detect_exception import LangDetectException
 import time
+import torch
+import re
+from bs4 import BeautifulSoup
+
+model_path = '/content/drive/MyDrive/Sentiment/full_model/'
+model = BertForSequenceClassification.from_pretrained(model_path)
+tokenizer = BertTokenizer.from_pretrained(model_path)
+model.eval()  # Set the model to evaluation mode
 
 DetectorFactory.seed = 0
 
@@ -133,6 +141,40 @@ def scrape_amazon():
         return jsonify({'reviews': english_reviews})
     except Exception as e:
         return jsonify({'error': str(e)})
+
+def clean_text(text):
+    # Remove HTML tags and get plain text
+    text = BeautifulSoup(text, "html.parser").get_text()
+    # Remove URLs
+    text = re.sub(r'http\S+|www\S+', '', text)
+    # Remove emojis and non-ASCII characters
+    text = re.sub(r'[^\x00-\x7F]+', '', text)
+    # Remove float numbers
+    text = re.sub(r'\b\d+\.\d+\b', '', text)
+    # Normalize whitespaces to a single space
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+            
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json
+    text = data['text']
+    cleaned_text = clean_text(text)
+        
+    # Tokenize and convert to tensors
+    inputs = tokenizer(cleaned_text, return_tensors='pt')
+
+    # Move tensors to the correct device if using GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+    model.to(device)
+
+    # Predict
+    with torch.no_grad():
+        outputs = model(**inputs)
+        prediction = torch.argmax(outputs.logits, dim=1).item()
+
+    return jsonify({'prediction': prediction})            
 
 if __name__ == '__main__':
     app.run(debug=True)
