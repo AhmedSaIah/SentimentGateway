@@ -27,4 +27,4 @@ def analyze():
         return jsonify({'error': response.text})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)  # Running on a different port to avoid conflict
+    app.run(debug=True, port=5001)

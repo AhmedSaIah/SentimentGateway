@@ -1,6 +1,6 @@
-import requests
 import json
-from filter_english_reviews import filter_english_reviews
+
+import requests
 
 # Define the API endpoint
 url = 'http://127.0.0.1:5000/scrapeamazon'
