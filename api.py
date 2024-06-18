@@ -1,180 +1,258 @@
-# from flask import Flask, request, jsonify
-# from textblob import TextBlob
-# import requests
+# import time
+# import random
+# import pickle
+# import os
+# from flask import Flask, jsonify, request
+# from selenium import webdriver
+# from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.common.by import By
+# from selenium.webdriver.chrome.options import Options
+# from selenium.webdriver.common.action_chains import ActionChains
+# from webdriver_manager.chrome import ChromeDriverManager
 # from bs4 import BeautifulSoup
-# import re
+
+# from SentimentAnalysisModel import infer
+# from ApiUtils import filter_english_reviews, match_keyword
 
 # app = Flask(__name__)
 
-# @app.route('/', methods=['GET','POST'])
+# # List of user agents to randomize
+# USER_AGENTS = [
+#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
+#     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
+#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
+#     'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36'
+# ]
+
+# def get_random_user_agent():
+#     return random.choice(USER_AGENTS)
+
+# def save_cookies(driver, path):
+#     with open(path, 'wb') as filehandler:
+#         pickle.dump(driver.get_cookies(), filehandler)
+
+# def load_cookies(driver, path):
+#     if os.path.exists(path):
+#         with open(path, 'rb') as cookiesfile:
+#             cookies = pickle.load(cookiesfile)
+#             for cookie in cookies:
+#                 driver.add_cookie(cookie)
+
+# @app.route('/', methods=['GET', 'POST'])
 # def entrance():
-#     return jsonify({'flask api entrance'})
+#     return jsonify('flask api entrance')
 
-# # Endpoint for sentiment analysis
-# @app.route('/sentimentanalysis', methods=['POST'])
-# def sentiment_analysis():
-#     try:
-#         data = request.get_json()
-#         text = data['text']
-#         analysis = TextBlob(text)
-#         sentiment_score = analysis.sentiment.polarity
-#         return jsonify({'sentiment_score': sentiment_score})
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
-
-# # Endpoint to scrape Amazon reviews
 # @app.route('/scrapeamazon', methods=['POST'])
 # def scrape_amazon():
 #     try:
 #         data = request.get_json()
+#         assert 'url' in data, "Request must have URL in its body"
 #         url = data['url']
-        
-#         headers = {
-#             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-#         }
-        
-#         response = requests.get(url, headers=headers)
-#         soup = BeautifulSoup(response.content, 'html.parser')
-        
+#         keyword = data.get('keyword')
+
+#         # Set up Chrome options
+#         options = Options()
+#         # Use headless mode only if necessary
+#         options.add_argument('--no-sandbox')
+#         options.add_argument('--disable-dev-shm-usage')
+#         options.add_argument('--disable-gpu')
+#         options.add_argument(f'user-agent={get_random_user_agent()}')
+#         options.add_argument("--window-size=1920,1080")
+
+#         # Initialize Chrome WebDriver
+#         service = Service(ChromeDriverManager().install())
+#         driver = webdriver.Chrome(service=service, options=options)
+
+#         # Load cookies if available
+#         cookies_path = 'amazon_cookies.pkl'
+#         load_cookies(driver, cookies_path)
+
+#         driver.get(url)
+#         time.sleep(random.uniform(5, 10))  # Random sleep to mimic human behavior
+
+#         # Save cookies
+#         save_cookies(driver, cookies_path)
+
+#         # Perform mouse movements to mimic user
+#         actions = ActionChains(driver)
+#         actions.move_by_offset(random.randint(100, 500), random.randint(100, 500)).perform()
+#         time.sleep(random.uniform(1, 3))
+#         actions.move_by_offset(random.randint(100, 500), random.randint(100, 500)).perform()
+
+#         # Scroll to load dynamic content
+#         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+#         time.sleep(random.uniform(2, 5))
+
+#         page_source = driver.page_source
+#         soup = BeautifulSoup(page_source, 'html.parser')
+
 #         reviews = []
-        
-#         # Amazon review selector - might need to adjust based on the actual structure
 #         review_elements = soup.find_all('span', {'data-hook': 'review-body'})
-        
+
 #         for element in review_elements:
-#             review_text = element.get_text(strip=False)
+#             review_text = element.get_text(strip=True)
 #             reviews.append(review_text)
-        
-#         return jsonify({'reviews': reviews})
+
+#         driver.quit()
+
+#         english_reviews = filter_english_reviews(reviews)
+#         if keyword:
+#             english_reviews = match_keyword(english_reviews, keyword=keyword)
+
+#         model_outs = infer(english_reviews)
+#         outs = [[review, model_out] for review, model_out in zip(english_reviews, model_outs)]
+
+#         return jsonify({'reviews': outs})
+
 #     except Exception as e:
 #         return jsonify({'error': str(e)})
+
+# @app.route('/classify', methods=['POST'])
+# def classify():
+#     data = request.json
+#     text = data['review']
+#     prediction = infer(text)
+#     return jsonify({'prediction': prediction})
 
 # if __name__ == '__main__':
 #     app.run(debug=True)
 
-# # @app.route('/sentimentanalysis', methods=['POST'])
-# # def sentiment_analysis():
-# #     try:
-# #         # Extract the raw text from the request
-# #         data = request.get_json()
-# #         text = data['text']
-        
-# #         # Perform sentiment analysis using TextBlob
-# #         analysis = TextBlob(text)
-# #         sentiment_score = analysis.sentiment.polarity
-        
-# #         # Return the sentiment score
-# #         return jsonify({'sentiment_score': sentiment_score})
-# #     except Exception as e:
-# #         return jsonify({'error': str(e)})
 
-# # if __name__ == '__main__':
-# #     app.run(debug=True)
-
-from flask import Flask, request, jsonify
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-from bs4 import BeautifulSoup
-from langdetect import detect, DetectorFactory
-from langdetect.lang_detect_exception import LangDetectException
+import os
+import pickle
+import random
 import time
-import torch
-import re
+
+from ApiUtils import filter_english_reviews, match_keyword
 from bs4 import BeautifulSoup
-
-model_path = '/content/drive/MyDrive/Sentiment/full_model/'
-model = BertForSequenceClassification.from_pretrained(model_path)
-tokenizer = BertTokenizer.from_pretrained(model_path)
-model.eval()  # Set the model to evaluation mode
-
-DetectorFactory.seed = 0
+from flask import Flask, jsonify, request
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+# Replace these imports with your actual implementations
+from SentimentAnalysisModel import infer
+from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 
-@app.route('/', methods=['GET','POST'])
+# List of user agents to randomize
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36'
+]
+
+
+def get_random_user_agent():
+    return random.choice(USER_AGENTS)
+
+
+def save_cookies(driver, path):
+    with open(path, 'wb') as filehandler:
+        pickle.dump(driver.get_cookies(), filehandler)
+
+
+def load_cookies(driver, path):
+    if os.path.exists(path):
+        with open(path, 'rb') as cookiesfile:
+            cookies = pickle.load(cookiesfile)
+            for cookie in cookies:
+                if 'expiry' in cookie:
+                    # Remove 'expiry' key to avoid exceptions
+                    del cookie['expiry']
+                driver.add_cookie(cookie)
+
+
+def perform_human_actions(driver):
+    """Perform actions to mimic human interaction."""
+    actions = ActionChains(driver)
+    # Move mouse
+    actions.move_by_offset(random.randint(100, 200),
+                           random.randint(100, 200)).perform()
+    time.sleep(random.uniform(1, 3))
+    actions.move_by_offset(random.randint(100, 200),
+                           random.randint(100, 200)).perform()
+    # Click a random part of the screen (ensure it's not an element that disrupts the process)
+    actions.click().perform()
+
+
+@app.route('/', methods=['GET', 'POST'])
 def entrance():
     return jsonify('flask api entrance')
 
-def filter_english_reviews(reviews):
-    english_reviews = []
-    for review in reviews:
-        try:
-            if detect(review) == 'en':
-                english_reviews.append(review)
-        except LangDetectException:
-            continue
-    return english_reviews
 
 @app.route('/scrapeamazon', methods=['POST'])
 def scrape_amazon():
-    try:
-        data = request.get_json()
-        url = data['url']
 
-        service = Service(ChromeDriverManager().install())
-        options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        driver = webdriver.Chrome(service=service, options=options)
+    data = request.get_json()
+    assert 'url' in data, "Request must have URL in its body"
+    url = data['url']
+    keyword = data.get('keyword')
 
-        driver.get(url)
-        time.sleep(5)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
-        
-        page_source = driver.page_source
-        soup = BeautifulSoup(page_source, 'html.parser')
-        
-        reviews = []
-        review_elements = soup.find_all('span', {'data-hook': 'review-body'})
-        
-        for element in review_elements:
-            review_text = element.get_text(strip=True)
-            reviews.append(review_text)
-        
-        driver.quit()
-        
-        english_reviews = filter_english_reviews(reviews)
-        return jsonify({'reviews': english_reviews})
-    except Exception as e:
-        return jsonify({'error': str(e)})
+    # Set up Chrome options
+    options = Options()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument(f'user-agent={get_random_user_agent()}')
+    options.add_argument("--window-size=1920,1080")
 
-def clean_text(text):
-    # Remove HTML tags and get plain text
-    text = BeautifulSoup(text, "html.parser").get_text()
-    # Remove URLs
-    text = re.sub(r'http\S+|www\S+', '', text)
-    # Remove emojis and non-ASCII characters
-    text = re.sub(r'[^\x00-\x7F]+', '', text)
-    # Remove float numbers
-    text = re.sub(r'\b\d+\.\d+\b', '', text)
-    # Normalize whitespaces to a single space
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
-            
-@app.route('/predict', methods=['POST'])
-def predict():
+    # Initialize Chrome WebDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+
+    # Load cookies if available
+    cookies_path = 'amazon_cookies.pkl'
+    driver.get(url)  # Navigate to the URL before loading cookies
+    load_cookies(driver, cookies_path)
+    driver.refresh()  # Refresh the page to use loaded cookies
+
+    # Perform human-like actions
+    perform_human_actions(driver)
+
+    # Random sleep to mimic human behavior
+    time.sleep(random.uniform(5, 10))
+
+    # Scroll to load dynamic content
+    driver.execute_script(
+        "window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(random.uniform(2, 5))
+
+    page_source = driver.page_source
+    soup = BeautifulSoup(page_source, 'html.parser')
+
+    reviews = []
+    review_elements = soup.find_all('span', {'data-hook': 'review-body'})
+
+    for element in review_elements:
+        review_text = element.get_text(strip=True)
+        reviews.append(review_text)
+
+    driver.quit()
+
+    english_reviews = filter_english_reviews(reviews)
+    if keyword:
+        english_reviews = match_keyword(english_reviews, keyword=keyword)
+
+    model_outs = infer(english_reviews)
+
+    outs = [[review] + model_out
+            for review, model_out in zip(english_reviews, model_outs)]
+
+    return jsonify({'reviews': outs})
+
+@app.route('/classify', methods=['POST'])
+def classify():
     data = request.json
-    text = data['text']
-    cleaned_text = clean_text(text)
-        
-    # Tokenize and convert to tensors
-    inputs = tokenizer(cleaned_text, return_tensors='pt')
+    text = data['review']
+    prediction = infer(text)
+    return jsonify({'prediction': prediction})
 
-    # Move tensors to the correct device if using GPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    inputs = {key: value.to(device) for key, value in inputs.items()}
-    model.to(device)
-
-    # Predict
-    with torch.no_grad():
-        outputs = model(**inputs)
-        prediction = torch.argmax(outputs.logits, dim=1).item()
-
-    return jsonify({'prediction': prediction})            
 
 if __name__ == '__main__':
     app.run(debug=True)
