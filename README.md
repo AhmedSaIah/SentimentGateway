@@ -40,13 +40,13 @@ Install the required dependencies using `pip`:
 pip install -r requirements.txt
 ```
 
-Run the server:
+## Running the api
 ```bash```
 ```cd ~ ``` 
 ```workon sentiment```
 ```bash run_sentiment_server.sh ```
 
-Run the ui:
+## Running the ui
 ```bash```
 ```cd ~```
 ```workon sentiment```
