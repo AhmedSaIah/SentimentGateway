@@ -6,13 +6,28 @@ import requests
 import streamlit as st
 
 
-# Function to scrape Amazon reviews
-def classify_reviews(product_url, keyword= None):
+def classify_reviews(product_url, keyword=None, max_reviews=20):
+    """
+    Classifies reviews for a given Amazon product URL.
+
+    Args:
+        product_url (str): The Amazon product URL.
+        keyword (str, optional): A keyword to filter reviews. Defaults to None.
+        max_reviews (int, optional): Maximum number of reviews to scrape. Defaults to 20.
+
+    Returns:
+        list: A list of classified reviews, or an error message.
+    """
     url = 'http://127.0.0.1:5000/scrapeamazon'
     try:
-        payload = {'url': product_url}
-        if keyword: payload['keyword'] = keyword
+        # Prepare the payload
+        payload = {'url': product_url, 'max_reviews': max_reviews}
+        if keyword:
+            payload['keyword'] = keyword
+        
         headers = {'Content-Type': 'application/json'}
+        
+        # Send the POST request to the scraping endpoint
         response = requests.post(url, headers=headers, data=json.dumps(payload))
         
         if response.status_code == 200:
@@ -22,7 +37,6 @@ def classify_reviews(product_url, keyword= None):
             return f'Error: {response.status_code}, {response.text}'
     except Exception as e:
         return f'Exception: {str(e)}'
-    
 
 def classify_single_review(product_url):
     url = 'http://127.0.0.1:5000/classify'
