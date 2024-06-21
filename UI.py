@@ -61,7 +61,8 @@ if st.button("Classify Reviews"):
     
         if st.session_state['results']:
         # Convert results to a DataFrame for display
-            df = pd.DataFrame(st.session_state['results'], columns=["Review", "Class", "Negative Probability", "Positive Probability"])
+            print(st.session_state['results'])
+            df = pd.DataFrame(st.session_state['results'], columns=["Review","Location", "Class", "Negative Probability", "Positive Probability"])
             
             # Display the results in a table
             st.write("Classification Results")

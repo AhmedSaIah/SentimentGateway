@@ -1,128 +1,8 @@
-# import time
-# import random
-# import pickle
-# import os
-# from flask import Flask, jsonify, request
-# from selenium import webdriver
-# from selenium.webdriver.chrome.service import Service
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.chrome.options import Options
-# from selenium.webdriver.common.action_chains import ActionChains
-# from webdriver_manager.chrome import ChromeDriverManager
-# from bs4 import BeautifulSoup
-
-# from SentimentAnalysisModel import infer
-# from ApiUtils import filter_english_reviews, match_keyword
-
-# app = Flask(__name__)
-
-# # List of user agents to randomize
-# USER_AGENTS = [
-#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-#     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
-#     'Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
-#     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36',
-#     'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36'
-# ]
-
-# def get_random_user_agent():
-#     return random.choice(USER_AGENTS)
-
-# def save_cookies(driver, path):
-#     with open(path, 'wb') as filehandler:
-#         pickle.dump(driver.get_cookies(), filehandler)
-
-# def load_cookies(driver, path):
-#     if os.path.exists(path):
-#         with open(path, 'rb') as cookiesfile:
-#             cookies = pickle.load(cookiesfile)
-#             for cookie in cookies:
-#                 driver.add_cookie(cookie)
-
-# @app.route('/', methods=['GET', 'POST'])
-# def entrance():
-#     return jsonify('flask api entrance')
-
-# @app.route('/scrapeamazon', methods=['POST'])
-# def scrape_amazon():
-#     try:
-#         data = request.get_json()
-#         assert 'url' in data, "Request must have URL in its body"
-#         url = data['url']
-#         keyword = data.get('keyword')
-
-#         # Set up Chrome options
-#         options = Options()
-#         # Use headless mode only if necessary
-#         options.add_argument('--no-sandbox')
-#         options.add_argument('--disable-dev-shm-usage')
-#         options.add_argument('--disable-gpu')
-#         options.add_argument(f'user-agent={get_random_user_agent()}')
-#         options.add_argument("--window-size=1920,1080")
-
-#         # Initialize Chrome WebDriver
-#         service = Service(ChromeDriverManager().install())
-#         driver = webdriver.Chrome(service=service, options=options)
-
-#         # Load cookies if available
-#         cookies_path = 'amazon_cookies.pkl'
-#         load_cookies(driver, cookies_path)
-
-#         driver.get(url)
-#         time.sleep(random.uniform(5, 10))  # Random sleep to mimic human behavior
-
-#         # Save cookies
-#         save_cookies(driver, cookies_path)
-
-#         # Perform mouse movements to mimic user
-#         actions = ActionChains(driver)
-#         actions.move_by_offset(random.randint(100, 500), random.randint(100, 500)).perform()
-#         time.sleep(random.uniform(1, 3))
-#         actions.move_by_offset(random.randint(100, 500), random.randint(100, 500)).perform()
-
-#         # Scroll to load dynamic content
-#         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-#         time.sleep(random.uniform(2, 5))
-
-#         page_source = driver.page_source
-#         soup = BeautifulSoup(page_source, 'html.parser')
-
-#         reviews = []
-#         review_elements = soup.find_all('span', {'data-hook': 'review-body'})
-
-#         for element in review_elements:
-#             review_text = element.get_text(strip=True)
-#             reviews.append(review_text)
-
-#         driver.quit()
-
-#         english_reviews = filter_english_reviews(reviews)
-#         if keyword:
-#             english_reviews = match_keyword(english_reviews, keyword=keyword)
-
-#         model_outs = infer(english_reviews)
-#         outs = [[review, model_out] for review, model_out in zip(english_reviews, model_outs)]
-
-#         return jsonify({'reviews': outs})
-
-#     except Exception as e:
-#         return jsonify({'error': str(e)})
-
-# @app.route('/classify', methods=['POST'])
-# def classify():
-#     data = request.json
-#     text = data['review']
-#     prediction = infer(text)
-#     return jsonify({'prediction': prediction})
-
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
-
 import os
 import pickle
 import random
 import time
+import re
 
 from ApiUtils import filter_english_reviews, match_keyword
 from bs4 import BeautifulSoup
@@ -226,25 +106,47 @@ def scrape_amazon():
     page_source = driver.page_source
     soup = BeautifulSoup(page_source, 'html.parser')
 
-    reviews = []
+    reviews, locations = [], []
     review_elements = soup.find_all('span', {'data-hook': 'review-body'})
+    date_location_elements = soup.find_all('span', {'data-hook': 'review-date'})
 
-    for element in review_elements:
-        review_text = element.get_text(strip=True)
+    # for element in review_elements:
+    #     review_text = element.get_text(strip=True)
+    #     reviews.append(review_text)
+
+    for review_element, location_element in zip(review_elements, date_location_elements):
+        review_text = review_element.get_text(strip=True)
+        location_text = extract_location(location_element.get_text(strip=True))
+            
         reviews.append(review_text)
+        locations.append(location_text)
 
     driver.quit()
 
-    english_reviews = filter_english_reviews(reviews)
+    english_reviews, english_reviews_indecies = filter_english_reviews(reviews)
+    selected_locations = [locations[i] for i in english_reviews_indecies if i < len(locations)]
+    matched_selected_locations = selected_locations
+    
     if keyword:
-        english_reviews = match_keyword(english_reviews, keyword=keyword)
-
+        english_reviews, matched_reviews_indecies = match_keyword(english_reviews, keyword=keyword)
+        matched_selected_locations = [selected_locations[i] for i in matched_reviews_indecies]
     model_outs = infer(english_reviews)
+    print(matched_selected_locations)
 
-    outs = [[review] + model_out
-            for review, model_out in zip(english_reviews, model_outs)]
+    outs = [[review, location] + model_out
+            for review, location, model_out in zip(english_reviews, matched_selected_locations, model_outs)]
 
     return jsonify({'reviews': outs})
+
+def extract_location(date_location_text):
+    """
+    Extracts the location from the review date-location text.
+    Assumes format 'Reviewed in <Location> on <Date>'.
+    """
+    match = re.search(r'Reviewed in (.*?) on ', date_location_text)
+    if match:
+        return match.group(1)
+    return "Unknown"
 
 @app.route('/classify', methods=['POST'])
 def classify():

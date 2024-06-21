@@ -6,25 +6,27 @@ DetectorFactory.seed = 0
 
 
 def filter_english_reviews(reviews):
-    english_reviews = []
+    english_reviews, english_reviews_indecies= [], []
 
-    for review in reviews:
+    for index, review in enumerate(reviews):
         try:
             # Detect the language of the review
             if detect(review) == 'en':
                 english_reviews.append(review)
+                english_reviews_indecies.append(index)
         except LangDetectException:
             # If detection fails, skip the review
             continue
 
-    return english_reviews
+    return english_reviews, english_reviews_indecies
 
 
 def match_keyword(reviews, keyword):
-    matched_reviews = []
+    matched_reviews, matched_reviews_indecies = [], []
     keyword = keyword.lower()
-    for review in reviews:
+    for index, review in enumerate(reviews):
         if keyword in review.lower():
             matched_reviews.append(review)
+            matched_reviews_indecies.append(index)
 
-    return matched_reviews
+    return matched_reviews, matched_reviews_indecies
