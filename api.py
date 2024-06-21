@@ -129,7 +129,7 @@ def scrape_amazon():
     
     if keyword:
         english_reviews, matched_reviews_indecies = match_keyword(english_reviews, keyword=keyword)
-        matched_selected_locations = [selected_locations[i] for i in matched_reviews_indecies if i < len(selected_locations)]
+        matched_selected_locations = [selected_locations[i] for i in matched_reviews_indecies]
     model_outs = infer(english_reviews)
     print(matched_selected_locations)
 
