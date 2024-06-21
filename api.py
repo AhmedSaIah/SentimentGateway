@@ -68,11 +68,11 @@ def entrance():
 
 @app.route('/scrapeamazon', methods=['POST'])
 def scrape_amazon():
-
     data = request.get_json()
     assert 'url' in data, "Request must have URL in its body"
     url = data['url']
     keyword = data.get('keyword')
+    max_reviews = data.get('max_reviews', 20)  # Default max reviews to 100 if not provided
 
     # Set up Chrome options
     options = Options()
@@ -95,31 +95,37 @@ def scrape_amazon():
     # Perform human-like actions
     perform_human_actions(driver)
 
-    # Random sleep to mimic human behavior
-    time.sleep(random.uniform(5, 10))
-
-    # Scroll to load dynamic content
-    driver.execute_script(
-        "window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(random.uniform(2, 5))
-
-    page_source = driver.page_source
-    soup = BeautifulSoup(page_source, 'html.parser')
-
     reviews, locations = [], []
-    review_elements = soup.find_all('span', {'data-hook': 'review-body'})
-    date_location_elements = soup.find_all('span', {'data-hook': 'review-date'})
+    last_height = driver.execute_script("return document.body.scrollHeight")
 
-    # for element in review_elements:
-    #     review_text = element.get_text(strip=True)
-    #     reviews.append(review_text)
+    while len(reviews) < max_reviews:
+        # Scroll to the bottom of the page
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(random.uniform(2, 5))
 
-    for review_element, location_element in zip(review_elements, date_location_elements):
-        review_text = review_element.get_text(strip=True)
-        location_text = extract_location(location_element.get_text(strip=True))
+        # Get page source and parse
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+
+        # Extract review elements
+        review_elements = soup.find_all('span', {'data-hook': 'review-body'})
+        date_location_elements = soup.find_all('span', {'data-hook': 'review-date'})
+
+        for review_element, location_element in zip(review_elements, date_location_elements):
+            review_text = review_element.get_text(strip=True)
+            location_text = extract_location(location_element.get_text(strip=True))
             
-        reviews.append(review_text)
-        locations.append(location_text)
+            reviews.append(review_text)
+            locations.append(location_text)
+
+            if len(reviews) >= max_reviews:
+                break
+
+        # Check if no more reviews are loaded (page did not scroll)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
 
     driver.quit()
 
